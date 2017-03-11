@@ -1,0 +1,6 @@
+.gradle
+.nb-gradle
+.DS_Store
+*~
+build/
+dist/

@@ -1,0 +1,121 @@
+apply plugin: 'java'
+
+sourceCompatibility = '1.8'
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
+
+// NetBeans will automatically add "run" and "debug" tasks relying on the
+// "mainClass" property. You may however define the property prior executing
+// tasks by passing a "-PmainClass=<QUALIFIED_CLASS_NAME>" argument.
+//
+// Note however, that you may define your own "run" and "debug" task if you
+// prefer. In this case NetBeans will not add these tasks but you may rely on
+// your own implementation.
+if (!hasProperty('mainClass')) {    
+    ext.mainClass = 'bluej.Bluejenv'
+}
+
+repositories {
+    mavenCentral()
+    // You may define additional repositories, or even remove "mavenCentral()".
+    // Read more about repositories here:
+    //   http://www.gradle.org/docs/current/userguide/dependency_management.html#sec:repositories
+    maven { url "http://dl.bintray.com/jmonkeyengine/org.jmonkeyengine" }
+}
+
+def jme3 = [v:'3.1.0-stable', g:'org.jmonkeyengine']
+
+dependencies {
+    // TODO: Add dependencies here ...
+    // You can read more about how to add dependency here:
+    //   http://www.gradle.org/docs/current/userguide/dependency_management.html#sec:how_to_declare_your_dependencies
+    testCompile group: 'junit', name: 'junit', version: '4.10'
+    
+    // These are the minimum
+    compile "${jme3.g}:jme3-core:${jme3.v}"
+    compile "${jme3.g}:jme3-lwjgl:${jme3.v}"
+    compile fileTree(include: ['*.jar'], dir: 'libs')       
+    
+    // Experimenting with extra jME3 features
+    compile "${jme3.g}:jme3-niftygui:${jme3.v}"
+    compile "${jme3.g}:jme3-jbullet:${jme3.v}"
+    compile "${jme3.g}:jme3-plugins:${jme3.v}"
+    compile "${jme3.g}:jme3-effects:${jme3.v}"
+    
+//    compile "${jme3.g}:jme3-desktop:${jme3.v}"
+//    runtime "${jme3.g}:jme3-lwjgl:${jme3.v}"
+}
+
+jar {
+  manifest {
+    attributes(
+        'Class-Path': 'lib/'+configurations.compile.collect { it.getName() }.join(' lib/'),
+        'Main-Class': 'bluej.Bluejenv'
+    )
+  }
+}
+
+def env3d_template_dir = './dist/env3d_template/'
+
+task dist(dependsOn: ['build']) {
+    doLast {
+        // Copy all the dependencies
+        ['+libs','extensions/lib'].each { libDir -> 
+            configurations.compile.each { artifact ->            
+                copy {
+                    from artifact
+                    exclude 'jython.jar'
+                    into env3d_template_dir+libDir
+                }
+            }
+        }
+        
+        // The primary jar
+        ['+libs','extensions'].each { dir ->
+            copy {           
+                from './build/libs/env3d-java-gradle.jar'
+                into env3d_template_dir+dir
+            }                    
+        }
+        
+        // Extract native libraries
+        def lwjglVersion = '2.9.3'
+        ['osx', 'windows', 'linux'].each { platform -> 
+            def nativeLib = "lwjgl-platform-${lwjglVersion}-natives-${platform}.jar"
+            copy {
+                from zipTree("${env3d_template_dir}+libs/${nativeLib}")
+                into env3d_template_dir
+                exclude 'META-INF/'
+            }
+            ['+libs','extensions/lib'].each { dir ->
+                delete "${env3d_template_dir}${dir}/${nativeLib}"
+            }            
+        }
+                        
+        // Copy the assets
+        copy {           
+            from './assets'
+            into env3d_template_dir
+        }        
+        
+        ant.touch(file:env3d_template_dir+'bluej.pkg')
+        ant.touch(file:env3d_template_dir+'package.bluej')        
+    }
+}
+
+task zip(type: Zip) {    
+    from './dist/env3d_template'
+    include '**'
+    into 'env3d_template/'
+    archiveName 'env3d_template.zip'
+    destinationDir file('./dist')
+}
+
+task cleanDist() {
+    doLast {
+        delete './dist'
+    }
+}
+
+clean.dependsOn cleanDist
+zip.mustRunAfter dist
+build.finalizedBy(dist)
