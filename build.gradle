@@ -41,8 +41,6 @@ dependencies {
     compile "${jme3.g}:jme3-plugins:${jme3.v}"
     compile "${jme3.g}:jme3-effects:${jme3.v}"
     
-//    compile "${jme3.g}:jme3-desktop:${jme3.v}"
-//    runtime "${jme3.g}:jme3-lwjgl:${jme3.v}"
 }
 
 jar {
@@ -55,6 +53,28 @@ jar {
 }
 
 def env3d_template_dir = './dist/env3d_template/'
+
+// Need to use custom run and debug so we can set the workingDir
+// Note that you will need to build at least once before running 
+// and debugging a single file
+//
+// https://github.com/kelemen/netbeans-gradle-project/issues/60
+//
+
+task run(dependsOn: classes, type: JavaExec) {
+    main = project.hasProperty('mainClass') ? project.mainClass : ''
+    classpath = sourceSets.main.runtimeClasspath
+    standardInput = System.in
+    workingDir = env3d_template_dir
+}
+
+task debug(dependsOn: classes, type: JavaExec) {
+    main = project.hasProperty('mainClass') ? project.mainClass : ''
+    classpath = sourceSets.main.runtimeClasspath
+    standardInput = System.in
+    workingDir = env3d_template_dir
+    debug = true
+}
 
 task dist(dependsOn: ['build']) {
     doLast {
